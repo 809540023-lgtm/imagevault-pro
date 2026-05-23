@@ -1,0 +1,29 @@
+# 核心框架
+fastapi>=0.100.0
+uvicorn[standard]>=0.22.0
+pydantic[email]>=2.0.0
+pydantic-settings>=2.0.0
+python-multipart>=0.0.6
+
+# 資料庫 (PostgreSQL & SQLAlchemy)
+sqlalchemy>=2.0.0
+asyncpg>=0.28.0
+alembic>=1.11.0
+
+# 資料庫 (MongoDB)
+motor>=3.2.0
+
+# 圖片處理
+pillow>=10.0.0
+pillow-heif>=0.13.0
+
+# AWS S3 (非同步)
+aioboto3>=11.2.0
+
+# 安全與認證
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+python-dotenv>=1.0.0
+
+# 其他工具
+python-slugify>=8.0.0

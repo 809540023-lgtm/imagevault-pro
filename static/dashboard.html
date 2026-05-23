@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageVault Pro - 統一管理平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- 引入 JSZip 用於批次打包下載 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        .fade-in { animation: fadeIn 0.3s ease-in; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .tab-active { border-bottom: 3px solid #2563eb; color: #2563eb; }
+        .img-selected { border: 4px solid #2563eb; transform: scale(0.95); }
+        .checkbox-custom { width: 24px; height: 24px; cursor: pointer; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-blue-600 text-white shadow-md p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold flex items-center">
+                <i class="fas fa-vault mr-2"></i> ImageVault Pro
+            </h1>
+            <div id="user-info" class="hidden flex items-center space-x-4">
+                <span id="username-display" class="text-sm font-medium"></span>
+                <button onclick="logout()" class="bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded text-sm transition">登出</button>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- 認證區塊 -->
+        <div id="auth-section" class="max-w-md mx-auto bg-white rounded-xl shadow-2xl p-8 mt-10 fade-in border border-gray-100">
+            <div class="flex mb-8 bg-gray-100 rounded-lg p-1">
+                <button id="tab-login" onclick="switchTab('login')" class="flex-1 py-2 rounded-md font-bold transition-all duration-200 bg-white shadow-sm text-blue-600">登入</button>
+                <button id="tab-signup" onclick="switchTab('signup')" class="flex-1 py-2 rounded-md font-bold transition-all duration-200 text-gray-500 hover:text-blue-600">註冊新帳號</button>
+            </div>
+
+            <div id="login-form" class="space-y-5">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-extrabold text-gray-800">歡迎回來</h2>
+                    <p class="text-gray-500 text-sm mt-1">請輸入您的憑證以存取金庫</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">帳號 (Username)</label>
+                    <input type="text" id="login-user" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" placeholder="請輸入帳號">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">密碼 (Password)</label>
+                    <input type="password" id="login-pass" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition" placeholder="請輸入密碼">
+                </div>
+                <button onclick="login()" id="login-btn" class="w-full bg-blue-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-blue-700 transform active:scale-95 transition shadow-lg">立即登入</button>
+            </div>
+
+            <div id="signup-form" class="hidden space-y-5">
+                <div class="text-center mb-6">
+                    <h2 class="text-2xl font-extrabold text-gray-800">建立帳號</h2>
+                    <p class="text-gray-500 text-sm mt-1">加入 ImageVault Pro 開始管理您的圖片</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">設定帳號 (Username)</label>
+                    <input type="text" id="signup-user" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition" placeholder="建議使用 Email">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-gray-600 mb-1">設定密碼 (Password)</label>
+                    <input type="password" id="signup-pass" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none transition" placeholder="至少 6 位數">
+                </div>
+                <button onclick="signup()" id="signup-btn" class="w-full bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700 transform active:scale-95 transition shadow-lg">確認註冊並登入</button>
+            </div>
+        </div>
+
+        <!-- Dashboard 內容 -->
+        <div id="dashboard-content" class="hidden space-y-8 fade-in">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <a href="/static/camera.html" class="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all border-l-8 border-green-500 group">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-green-600">專業拍照上傳</h3>
+                            <p class="text-sm text-gray-500 mt-1">支援高畫質原圖與相簿</p>
+                        </div>
+                        <i class="fas fa-cloud-upload-alt text-4xl text-green-500 group-hover:scale-110 transition"></i>
+                    </div>
+                </a>
+                <a href="/docs" target="_blank" class="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all border-l-8 border-blue-500 group">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800 group-hover:text-blue-600">API 文件</h3>
+                            <p class="text-sm text-gray-500 mt-1">開發者專用介面</p>
+                        </div>
+                        <i class="fas fa-code text-4xl text-blue-500 group-hover:scale-110 transition"></i>
+                    </div>
+                </a>
+                <div class="bg-white p-6 rounded-xl shadow-md border-l-8 border-purple-500">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-bold text-gray-800">系統狀態</h3>
+                            <p class="text-sm text-gray-500 mt-1">服務運行中 (Manus Stable)</p>
+                        </div>
+                        <i class="fas fa-check-circle text-4xl text-purple-500"></i>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 搜尋與過濾區塊 -->
+            <div class="bg-white p-6 rounded-xl shadow-md space-y-4">
+                <div class="flex flex-col md:flex-row gap-4 items-center">
+                    <div class="relative flex-1 w-full">
+                        <i class="fas fa-search absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="search-input" oninput="filterImages()" placeholder="搜尋倉庫編號、分類或名稱..." class="w-full pl-12 pr-4 py-3 bg-gray-50 border-none rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-medium">
+                    </div>
+                    <button onclick="loadImages()" class="w-full md:w-auto bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center">
+                        <i class="fas fa-sync-alt mr-2"></i> 重新整理
+                    </button>
+                </div>
+                
+                <!-- 日期篩選器 -->
+                <div class="flex flex-col md:flex-row gap-4 items-end bg-gray-50 p-4 rounded-xl">
+                    <div class="flex-1 w-full space-y-1">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">開始日期</label>
+                        <input type="date" id="date-start" onchange="filterImages()" class="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <div class="flex-1 w-full space-y-1">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">結束日期</label>
+                        <input type="date" id="date-end" onchange="filterImages()" class="w-full p-2 bg-white border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                    <button onclick="clearFilters()" class="w-full md:w-auto text-gray-500 hover:text-red-500 text-sm font-bold py-2 px-4 transition">
+                        <i class="fas fa-times-circle mr-1"></i> 清除篩選
+                    </button>
+                </div>
+            </div>
+
+            <!-- 批次操作工具列 -->
+            <div id="batch-toolbar" class="bg-blue-50 p-4 rounded-xl border border-blue-100 flex justify-between items-center hidden">
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center cursor-pointer">
+                        <input type="checkbox" id="select-all" onchange="toggleSelectAll()" class="checkbox-custom rounded mr-2">
+                        <span class="text-sm font-bold text-blue-700">全選</span>
+                    </label>
+                    <span id="selected-count" class="text-sm font-medium text-blue-600">已選取 0 張圖片</span>
+                </div>
+                <div class="flex space-x-2">
+                    <button id="download-btn" onclick="downloadSelected()" class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center">
+                        <i class="fas fa-download mr-2"></i> 批次下載 ZIP
+                    </button>
+                    <button onclick="cancelSelection()" class="bg-white border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-bold hover:bg-gray-50 transition">
+                        取消
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-xl shadow-xl overflow-hidden">
+                <div class="p-6 border-b bg-gray-50 flex justify-between items-center">
+                    <h2 class="text-xl font-bold text-gray-800 flex items-center">
+                        <i class="fas fa-images mr-2 text-blue-600"></i> 圖片庫
+                    </h2>
+                    <button id="enter-select-mode" onclick="enterSelectMode()" class="text-blue-600 hover:text-blue-800 text-sm font-bold transition">
+                        <i class="fas fa-check-square mr-1"></i> 批次選取
+                    </button>
+                </div>
+                <div class="p-6">
+                    <div id="image-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
+                        <p class="col-span-full text-center text-gray-400 py-20">載入中...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 下載進度彈窗 -->
+    <div id="download-modal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="bg-white p-8 rounded-2xl shadow-2xl max-w-sm w-full text-center space-y-4">
+            <div class="animate-spin text-blue-600 text-4xl mx-auto">
+                <i class="fas fa-circle-notch"></i>
+            </div>
+            <h3 class="text-xl font-bold text-gray-800">正在打包圖片...</h3>
+            <p id="download-status" class="text-sm text-gray-500">請稍候，這可能需要一點時間</p>
+            <div class="w-full bg-gray-100 rounded-full h-2">
+                <div id="download-progress" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let authToken = localStorage.getItem('vault_token');
+        let currentUsername = localStorage.getItem('vault_user');
+        let allImages = [];
+        let filteredImages = [];
+        let selectedIds = new Set();
+        let isSelectMode = false;
+
+        function switchTab(tab) {
+            const loginForm = document.getElementById('login-form');
+            const signupForm = document.getElementById('signup-form');
+            const tabLogin = document.getElementById('tab-login');
+            const tabSignup = document.getElementById('tab-signup');
+
+            if (tab === 'login') {
+                loginForm.classList.remove('hidden');
+                signupForm.classList.add('hidden');
+                tabLogin.className = "flex-1 py-2 rounded-md font-bold transition-all duration-200 bg-white shadow-sm text-blue-600";
+                tabSignup.className = "flex-1 py-2 rounded-md font-bold transition-all duration-200 text-gray-500 hover:text-blue-600";
+            } else {
+                loginForm.classList.add('hidden');
+                signupForm.classList.remove('hidden');
+                tabLogin.className = "flex-1 py-2 rounded-md font-bold transition-all duration-200 text-gray-500 hover:text-blue-600";
+                tabSignup.className = "flex-1 py-2 rounded-md font-bold transition-all duration-200 bg-white shadow-sm text-green-600";
+            }
+        }
+
+        function checkAuth() {
+            if (authToken) {
+                document.getElementById('auth-section').classList.add('hidden');
+                document.getElementById('dashboard-content').classList.remove('hidden');
+                document.getElementById('user-info').classList.remove('hidden');
+                document.getElementById('username-display').innerText = currentUsername;
+                loadImages();
+            } else {
+                document.getElementById('auth-section').classList.remove('hidden');
+                document.getElementById('dashboard-content').classList.add('hidden');
+                document.getElementById('user-info').classList.add('hidden');
+            }
+        }
+
+        async function login() {
+            const user = document.getElementById('login-user').value;
+            const pass = document.getElementById('login-pass').value;
+            const btn = document.getElementById('login-btn');
+            
+            if (!user || !pass) { alert('請填寫帳號密碼'); return; }
+
+            btn.disabled = true;
+            btn.innerText = "登入中...";
+
+            const formData = new FormData();
+            formData.append('username', user);
+            formData.append('password', pass);
+
+            try {
+                const response = await fetch('/api/v1/login/access-token', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    authToken = data.access_token;
+                    currentUsername = user;
+                    localStorage.setItem('vault_token', authToken);
+                    localStorage.setItem('vault_user', currentUsername);
+                    checkAuth();
+                } else {
+                    alert('❌ 登入失敗，請檢查帳號密碼');
+                }
+            } catch (error) {
+                alert('❌ 連線錯誤');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "立即登入";
+            }
+        }
+
+        async function signup() {
+            const user = document.getElementById('signup-user').value;
+            const pass = document.getElementById('signup-pass').value;
+            const btn = document.getElementById('signup-btn');
+
+            if (!user || !pass) { alert('請填寫完整資訊'); return; }
+            if (pass.length < 6) { alert('密碼至少需要 6 位數'); return; }
+
+            btn.disabled = true;
+            btn.innerText = "註冊中...";
+
+            try {
+                const response = await fetch('/api/v1/signup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: user, password: pass })
+                });
+
+                if (response.ok) {
+                    alert('✅ 註冊成功！正在為您登入...');
+                    document.getElementById('login-user').value = user;
+                    document.getElementById('login-pass').value = pass;
+                    switchTab('login');
+                    await login();
+                } else {
+                    const err = await response.json();
+                    alert('❌ 註冊失敗: ' + (err.detail || '該帳號可能已被使用'));
+                }
+            } catch (error) {
+                alert('❌ 連線錯誤');
+            } finally {
+                btn.disabled = false;
+                btn.innerText = "確認註冊並登入";
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('vault_token');
+            localStorage.removeItem('vault_user');
+            authToken = null;
+            checkAuth();
+        }
+
+        async function loadImages() {
+            const grid = document.getElementById('image-grid');
+            try {
+                const response = await fetch('/api/v1/images/', {
+                    headers: { 'Authorization': `Bearer ${authToken}` }
+                });
+                allImages = await response.json();
+                filterImages();
+            } catch (error) {
+                grid.innerHTML = '<p class="col-span-full text-center text-red-400 py-20">載入失敗</p>';
+            }
+        }
+
+        function renderImages(images) {
+            const grid = document.getElementById('image-grid');
+            if (images.length === 0) {
+                grid.innerHTML = '<p class="col-span-full text-center text-gray-400 py-20">找不到匹配的圖片</p>';
+                return;
+            }
+
+            grid.innerHTML = images.map(img => {
+                const date = new Date(img.upload_date).toLocaleDateString('zh-TW');
+                const isSelected = selectedIds.has(img.id);
+                return `
+                    <div id="img-card-${img.id}" onclick="handleImageClick(${img.id})" class="group relative bg-gray-100 rounded-xl overflow-hidden aspect-square shadow-md hover:shadow-2xl transition-all duration-300 cursor-pointer ${isSelected ? 'img-selected' : ''}">
+                        <img src="${img.s3_url}" class="w-full h-full object-cover transform group-hover:scale-110 transition-duration-500" alt="${img.filename}">
+                        
+                        <!-- 選取框 (僅在選取模式顯示) -->
+                        <div class="absolute top-2 right-2 z-10 ${isSelectMode ? '' : 'hidden'}">
+                            <input type="checkbox" class="checkbox-custom rounded shadow-lg" ${isSelected ? 'checked' : ''} onclick="event.stopPropagation(); toggleSelection(${img.id})">
+                        </div>
+
+                        <div class="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-3">
+                            <p class="text-white text-[10px] font-bold"><i class="fas fa-calendar-alt mr-1"></i>${date}</p>
+                            <p class="text-white text-xs font-bold truncate"><i class="fas fa-tag mr-1"></i>${img.category_name}</p>
+                            <p class="text-white text-[10px] opacity-80 truncate"><i class="fas fa-map-marker-alt mr-1"></i>${img.warehouse_location}</p>
+                            ${img.tags && img.tags.length > 0 ? `
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    ${img.tags.map(tag => `<span class="bg-blue-600 text-white text-[8px] px-1 rounded">${tag}</span>`).join('')}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function filterImages() {
+            const query = document.getElementById('search-input').value.toLowerCase();
+            const startDate = document.getElementById('date-start').value;
+            const endDate = document.getElementById('date-end').value;
+
+            filteredImages = allImages.filter(img => {
+                const inCategory = img.category_name.toLowerCase().includes(query);
+                const inLocation = img.warehouse_location.toLowerCase().includes(query);
+                const inFilename = img.filename.toLowerCase().includes(query);
+                const inTags = img.tags && img.tags.some(tag => tag.toLowerCase().includes(query));
+                const matchQuery = !query || (inCategory || inLocation || inFilename || inTags);
+
+                const imgDate = img.upload_date.split('T')[0];
+                const matchStart = !startDate || (imgDate >= startDate);
+                const matchEnd = !endDate || (imgDate <= endDate);
+
+                return matchQuery && matchStart && matchEnd;
+            });
+
+            renderImages(filteredImages);
+        }
+
+        function clearFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('date-start').value = '';
+            document.getElementById('date-end').value = '';
+            filterImages();
+        }
+
+        // --- 批次選取與下載邏輯 ---
+
+        function enterSelectMode() {
+            isSelectMode = true;
+            document.getElementById('batch-toolbar').classList.remove('hidden');
+            document.getElementById('enter-select-mode').classList.add('hidden');
+            renderImages(filteredImages);
+        }
+
+        function cancelSelection() {
+            isSelectMode = false;
+            selectedIds.clear();
+            document.getElementById('batch-toolbar').classList.add('hidden');
+            document.getElementById('enter-select-mode').classList.remove('hidden');
+            renderImages(filteredImages);
+        }
+
+        function handleImageClick(id) {
+            if (isSelectMode) {
+                toggleSelection(id);
+            } else {
+                // 非選取模式下點擊可查看大圖 (可選實作)
+                const img = allImages.find(i => i.id === id);
+                if (img) window.open(img.s3_url, '_blank');
+            }
+        }
+
+        function toggleSelection(id) {
+            if (selectedIds.has(id)) {
+                selectedIds.delete(id);
+                document.getElementById(`img-card-${id}`).classList.remove('img-selected');
+            } else {
+                selectedIds.add(id);
+                document.getElementById(`img-card-${id}`).classList.add('img-selected');
+            }
+            updateSelectedCount();
+        }
+
+        function toggleSelectAll() {
+            const isAll = document.getElementById('select-all').checked;
+            if (isAll) {
+                filteredImages.forEach(img => selectedIds.add(img.id));
+            } else {
+                selectedIds.clear();
+            }
+            renderImages(filteredImages);
+            updateSelectedCount();
+        }
+
+        function updateSelectedCount() {
+            const count = selectedIds.size;
+            document.getElementById('selected-count').innerText = `已選取 ${count} 張圖片`;
+            document.getElementById('download-btn').disabled = count === 0;
+            document.getElementById('download-btn').className = count === 0 
+                ? "bg-gray-300 text-white px-4 py-2 rounded-lg text-sm font-bold cursor-not-allowed"
+                : "bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-blue-700 transition flex items-center";
+        }
+
+        async function downloadSelected() {
+            if (selectedIds.size === 0) return;
+
+            const modal = document.getElementById('download-modal');
+            const progressBar = document.getElementById('download-progress');
+            const statusText = document.getElementById('download-status');
+            
+            modal.classList.remove('hidden');
+            const zip = new JSZip();
+            const selectedImages = allImages.filter(img => selectedIds.has(img.id));
+            
+            let completed = 0;
+            const total = selectedImages.length;
+
+            try {
+                for (const img of selectedImages) {
+                    statusText.innerText = `正在下載: ${img.filename} (${completed + 1}/${total})`;
+                    const response = await fetch(img.s3_url);
+                    const blob = await response.blob();
+                    zip.file(img.filename, blob);
+                    
+                    completed++;
+                    const percent = Math.round((completed / total) * 100);
+                    progressBar.style.width = percent + '%';
+                }
+
+                statusText.innerText = "正在產生壓縮檔...";
+                const content = await zip.generateAsync({ type: "blob" });
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                const dateStr = new Date().toISOString().split('T')[0].replace(/-/g, '');
+                link.download = `imagevault_export_${dateStr}.zip`;
+                link.click();
+                
+                modal.classList.add('hidden');
+                alert(`✅ 成功打包 ${total} 張圖片！`);
+                cancelSelection();
+            } catch (error) {
+                console.error(error);
+                alert("❌ 下載過程中發生錯誤");
+                modal.classList.add('hidden');
+            }
+        }
+
+        window.onload = checkAuth;
+    </script>
+</body>
+</html>

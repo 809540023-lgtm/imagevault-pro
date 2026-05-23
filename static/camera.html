@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ImageVault Pro - 專業上傳介面</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .btn-active:active { transform: scale(0.98); }
+        .upload-area { border: 3px dashed #e5e7eb; transition: all 0.3s; }
+        .upload-area:hover { border-color: #3b82f6; background-color: #eff6ff; }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center p-4">
+    <div class="max-w-md w-full bg-white rounded-3xl shadow-2xl p-6 space-y-6 border border-gray-100">
+        <div class="flex justify-between items-center">
+            <h1 class="text-2xl font-black text-blue-600 flex items-center">
+                <i class="fas fa-cloud-upload-alt mr-2"></i>專業上傳
+            </h1>
+            <a href="/dashboard" class="flex items-center text-gray-400 hover:text-blue-600 transition group">
+                <span class="text-xs font-bold mr-1 opacity-0 group-hover:opacity-100 transition">返回平台</span>
+                <i class="fas fa-times-circle text-2xl"></i>
+            </a>
+        </div>
+
+        <!-- 認證狀態 -->
+        <div id="auth-badge" class="bg-blue-50 text-blue-700 px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-between">
+            <span><i class="fas fa-user-check mr-1"></i> 憑證已就緒</span>
+            <input type="hidden" id="token">
+        </div>
+
+        <!-- 核心上傳區塊 -->
+        <div class="space-y-4">
+            <!-- 原生拍照/選擇按鈕 (最穩定) -->
+            <label for="file-input" class="upload-area w-full aspect-video rounded-2xl flex flex-col items-center justify-center cursor-pointer group">
+                <div id="preview-container" class="hidden w-full h-full">
+                    <img id="preview-img" class="w-full h-full object-cover rounded-2xl">
+                </div>
+                <div id="upload-prompt" class="text-center space-y-2">
+                    <div class="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto group-hover:scale-110 transition">
+                        <i class="fas fa-camera text-2xl"></i>
+                    </div>
+                    <p class="text-gray-600 font-bold">點擊拍照 或 從相簿選擇</p>
+                    <p class="text-gray-400 text-xs">支援高畫質原圖上傳</p>
+                </div>
+                <!-- 移除 capture="environment" 以便彈出系統選單 -->
+                <input type="file" id="file-input" accept="image/*" class="hidden">
+            </label>
+
+            <!-- 參數設定 -->
+            <div class="grid grid-cols-2 gap-4">
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">分類</label>
+                    <input type="text" id="category" value="二手產品" class="w-full p-3 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">倉庫位置</label>
+                    <input type="text" id="location" value="預設位置" class="w-full p-3 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold">
+                </div>
+            </div>
+
+            <!-- 倉庫編號 -->
+            <div class="space-y-1">
+                <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">倉庫編號 (Warehouse ID)</label>
+                <input type="text" id="warehouse-id" placeholder="例如: WH-A01-B2" class="w-full p-3 bg-gray-50 border-none rounded-xl text-sm focus:ring-2 focus:ring-blue-500 outline-none font-bold">
+            </div>
+        </div>
+
+        <!-- 上傳按鈕 -->
+        <button id="upload-btn" disabled class="w-full bg-gray-300 text-white py-4 rounded-2xl font-black text-lg shadow-lg btn-active transition-all flex items-center justify-center">
+            <i class="fas fa-arrow-up mr-2"></i>確認上傳
+        </button>
+
+        <!-- 進度條 -->
+        <div id="progress-container" class="hidden space-y-2">
+            <div class="flex justify-between text-xs font-bold text-gray-500">
+                <span id="progress-text">正在傳送...</span>
+                <span id="progress-percent">0%</span>
+            </div>
+            <div class="w-full bg-gray-100 rounded-full h-2">
+                <div id="progress-bar" class="bg-blue-600 h-2 rounded-full transition-all duration-300" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- 狀態顯示 -->
+        <div id="status" class="hidden p-4 rounded-xl text-sm font-bold text-center"></div>
+    </div>
+
+    <script>
+        const fileInput = document.getElementById('file-input');
+        const uploadBtn = document.getElementById('upload-btn');
+        const previewContainer = document.getElementById('preview-container');
+        const uploadPrompt = document.getElementById('upload-prompt');
+        const previewImg = document.getElementById('preview-img');
+        const statusDiv = document.getElementById('status');
+        const progressContainer = document.getElementById('progress-container');
+        const progressBar = document.getElementById('progress-bar');
+        const progressPercent = document.getElementById('progress-percent');
+
+        // 自動載入 Token
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedToken = localStorage.getItem('vault_token');
+            if (savedToken) {
+                document.getElementById('token').value = savedToken;
+            } else {
+                alert("請先在 Dashboard 登入！");
+                window.location.href = "/dashboard";
+            }
+        });
+
+        // 檔案選擇預覽
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    previewImg.src = event.target.result;
+                    previewContainer.classList.remove('hidden');
+                    uploadPrompt.classList.add('hidden');
+                    uploadBtn.disabled = false;
+                    uploadBtn.classList.replace('bg-gray-300', 'bg-blue-600');
+                    showStatus(`已選擇: ${(file.size / (1024 * 1024)).toFixed(2)} MB`, "bg-blue-50 text-blue-600");
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        function showStatus(msg, classes) {
+            statusDiv.innerText = msg;
+            statusDiv.className = `w-full p-4 rounded-xl text-sm font-bold text-center ${classes}`;
+            statusDiv.classList.remove('hidden');
+        }
+
+        // 核心：使用 XMLHttpRequest 實作進度監控與穩定上傳
+        uploadBtn.addEventListener('click', () => {
+            const file = fileInput.files[0];
+            const token = document.getElementById('token').value;
+            
+            if (!file || !token) return;
+
+            uploadBtn.disabled = true;
+            uploadBtn.innerText = "上傳中...";
+            progressContainer.classList.remove('hidden');
+            statusDiv.classList.add('hidden');
+
+            const formData = new FormData();
+            formData.append('file', file);
+            const warehouseId = document.getElementById('warehouse-id').value;
+            formData.append('category_name', document.getElementById('category').value);
+            formData.append('warehouse_location', document.getElementById('location').value);
+            formData.append('tags', warehouseId ? `warehouse:${warehouseId},native-upload` : 'native-upload');
+
+            const xhr = new XMLHttpRequest();
+            
+            // 監控進度
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    const percent = Math.round((e.loaded / e.total) * 100);
+                    progressBar.style.width = percent + '%';
+                    progressPercent.innerText = percent + '%';
+                }
+            });
+
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === 4) {
+                    progressContainer.classList.add('hidden');
+                    uploadBtn.disabled = false;
+                    uploadBtn.innerText = "確認上傳";
+
+                    if (xhr.status === 200) {
+                        showStatus("✅ 上傳成功！圖片已安全入庫", "bg-green-50 text-green-600");
+                        // 清除預覽
+                        setTimeout(() => {
+                            previewContainer.classList.add('hidden');
+                            uploadPrompt.classList.remove('hidden');
+                            fileInput.value = '';
+                            uploadBtn.disabled = true;
+                            uploadBtn.classList.replace('bg-blue-600', 'bg-gray-300');
+                        }, 2000);
+                    } else {
+                        try {
+                            const err = JSON.parse(xhr.responseText);
+                            showStatus("❌ 上傳失敗: " + (err.detail || "伺服器錯誤"), "bg-red-50 text-red-600");
+                        } catch(e) {
+                            showStatus("❌ 網路錯誤：請檢查連線或嘗試縮小照片", "bg-red-50 text-red-600");
+                        }
+                    }
+                }
+            };
+
+            xhr.open('POST', '/api/v1/images/', true);
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+            xhr.send(formData);
+        });
+    </script>
+</body>
+</html>
